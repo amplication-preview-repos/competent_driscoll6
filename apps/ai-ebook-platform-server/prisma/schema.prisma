@@ -7,37 +7,6 @@ generator client {
   provider = "prisma-client-js"
 }
 
-model AuthorInformation {
-  biography String?
-  createdAt DateTime @default(now())
-  id        String   @id @default(cuid())
-  image     Json?
-  name      String?
-  updatedAt DateTime @updatedAt
-}
-
-model EbookMarketing {
-  category    String?
-  cover       Json?
-  createdAt   DateTime @default(now())
-  description String?
-  id          String   @id @default(cuid())
-  keywords    String?
-  pricing     Float?
-  subtitle    String?
-  title       String?
-  updatedAt   DateTime @updatedAt
-}
-
-model PublisherInformation {
-  about     String?
-  createdAt DateTime @default(now())
-  id        String   @id @default(cuid())
-  logo      Json?
-  name      String?
-  updatedAt DateTime @updatedAt
-}
-
 model User {
   createdAt DateTime @default(now())
   email     String?  @unique

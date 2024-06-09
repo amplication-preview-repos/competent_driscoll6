@@ -1,7 +1,4 @@
 import { Module } from "@nestjs/common";
-import { AuthorInformationModule } from "./authorInformation/authorInformation.module";
-import { EbookMarketingModule } from "./ebookMarketing/ebookMarketing.module";
-import { PublisherInformationModule } from "./publisherInformation/publisherInformation.module";
 import { UserModule } from "./user/user.module";
 import { HealthModule } from "./health/health.module";
 import { PrismaModule } from "./prisma/prisma.module";
@@ -22,9 +19,6 @@ import { AuthModule } from "./auth/auth.module";
     StorageModule,
     ACLModule,
     AuthModule,
-    AuthorInformationModule,
-    EbookMarketingModule,
-    PublisherInformationModule,
     UserModule,
     HealthModule,
     PrismaModule,
