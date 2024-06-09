@@ -1,0 +1,21 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DB_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model EbookMarketing {
+  category    String?
+  cover       Json?
+  createdAt   DateTime @default(now())
+  description String?
+  id          String   @id @default(cuid())
+  keywords    String?
+  pricing     Float?
+  subtitle    String?
+  title       String?
+  updatedAt   DateTime @updatedAt
+}
