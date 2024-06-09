@@ -14,9 +14,16 @@ import {
   Prisma,
   PublisherInformation as PrismaPublisherInformation,
 } from "@prisma/client";
+import { LocalStorageService } from "src/storage/providers/local/local.storage.service";
+import { InputJsonValue } from "src/types";
+import { FileDownload, FileUpload } from "src/storage/base/storage.types";
+import { LocalStorageFile } from "src/storage/providers/local/local.storage.types";
 
 export class PublisherInformationServiceBase {
-  constructor(protected readonly prisma: PrismaService) {}
+  constructor(
+    protected readonly prisma: PrismaService,
+    protected readonly localStorageService: LocalStorageService
+  ) {}
 
   async count(
     args: Omit<Prisma.PublisherInformationCountArgs, "select">
@@ -60,5 +67,61 @@ export class PublisherInformationServiceBase {
     args: Prisma.SelectSubset<T, Prisma.PublisherInformationDeleteArgs>
   ): Promise<PrismaPublisherInformation> {
     return this.prisma.publisherInformation.delete(args);
+  }
+
+  async uploadLogo<T extends Prisma.PublisherInformationFindUniqueArgs>(
+    args: Prisma.SelectSubset<T, Prisma.PublisherInformationFindUniqueArgs>,
+    file: FileUpload
+  ): Promise<PrismaPublisherInformation> {
+    file.filename = `profilePicture-${args.where.id}.${file.filename
+      .split(".")
+      .pop()}`;
+    const containerPath = "logo";
+    const logo = await this.localStorageService.uploadFile(
+      file,
+      [],
+      1000000,
+      containerPath
+    );
+
+    return await this.prisma.publisherInformation.update({
+      where: args.where,
+
+      data: {
+        logo: logo as InputJsonValue,
+      },
+    });
+  }
+
+  async downloadLogo<T extends Prisma.PublisherInformationFindUniqueArgs>(
+    args: Prisma.SelectSubset<T, Prisma.PublisherInformationFindUniqueArgs>
+  ): Promise<FileDownload> {
+    const { logo } = await this.prisma.publisherInformation.findUniqueOrThrow({
+      where: args.where,
+    });
+
+    return await this.localStorageService.downloadFile(
+      logo as unknown as LocalStorageFile
+    );
+  }
+
+  async deleteLogo<T extends Prisma.PublisherInformationFindUniqueArgs>(
+    args: Prisma.SelectSubset<T, Prisma.PublisherInformationFindUniqueArgs>
+  ): Promise<PrismaPublisherInformation> {
+    const { logo } = await this.prisma.publisherInformation.findUniqueOrThrow({
+      where: args.where,
+    });
+
+    await this.localStorageService.deleteFile(
+      logo as unknown as LocalStorageFile
+    );
+
+    return await this.prisma.publisherInformation.update({
+      where: args.where,
+
+      data: {
+        logo: Prisma.DbNull,
+      },
+    });
   }
 }

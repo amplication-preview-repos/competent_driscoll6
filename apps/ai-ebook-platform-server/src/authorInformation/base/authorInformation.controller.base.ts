@@ -13,20 +13,39 @@ import * as common from "@nestjs/common";
 import * as swagger from "@nestjs/swagger";
 import { isRecordNotFoundError } from "../../prisma.util";
 import * as errors from "../../errors";
-import { Request } from "express";
+import { Request, Response } from "express";
 import { plainToClass } from "class-transformer";
 import { ApiNestedQuery } from "../../decorators/api-nested-query.decorator";
+import * as nestAccessControl from "nest-access-control";
+import * as defaultAuthGuard from "../../auth/defaultAuth.guard";
+import { FileInterceptor } from "@nestjs/platform-express";
 import { AuthorInformationService } from "../authorInformation.service";
+import { AclValidateRequestInterceptor } from "../../interceptors/aclValidateRequest.interceptor";
+import { AclFilterResponseInterceptor } from "../../interceptors/aclFilterResponse.interceptor";
 import { AuthorInformationCreateInput } from "./AuthorInformationCreateInput";
 import { AuthorInformation } from "./AuthorInformation";
 import { AuthorInformationFindManyArgs } from "./AuthorInformationFindManyArgs";
 import { AuthorInformationWhereUniqueInput } from "./AuthorInformationWhereUniqueInput";
 import { AuthorInformationUpdateInput } from "./AuthorInformationUpdateInput";
 
+@swagger.ApiBearerAuth()
+@common.UseGuards(defaultAuthGuard.DefaultAuthGuard, nestAccessControl.ACGuard)
 export class AuthorInformationControllerBase {
-  constructor(protected readonly service: AuthorInformationService) {}
+  constructor(
+    protected readonly service: AuthorInformationService,
+    protected readonly rolesBuilder: nestAccessControl.RolesBuilder
+  ) {}
+  @common.UseInterceptors(AclValidateRequestInterceptor)
   @common.Post()
   @swagger.ApiCreatedResponse({ type: AuthorInformation })
+  @nestAccessControl.UseRoles({
+    resource: "AuthorInformation",
+    action: "create",
+    possession: "any",
+  })
+  @swagger.ApiForbiddenResponse({
+    type: errors.ForbiddenException,
+  })
   async createAuthorInformation(
     @common.Body() data: AuthorInformationCreateInput
   ): Promise<AuthorInformation> {
@@ -43,9 +62,18 @@ export class AuthorInformationControllerBase {
     });
   }
 
+  @common.UseInterceptors(AclFilterResponseInterceptor)
   @common.Get()
   @swagger.ApiOkResponse({ type: [AuthorInformation] })
   @ApiNestedQuery(AuthorInformationFindManyArgs)
+  @nestAccessControl.UseRoles({
+    resource: "AuthorInformation",
+    action: "read",
+    possession: "any",
+  })
+  @swagger.ApiForbiddenResponse({
+    type: errors.ForbiddenException,
+  })
   async authorInformations(
     @common.Req() request: Request
   ): Promise<AuthorInformation[]> {
@@ -63,9 +91,18 @@ export class AuthorInformationControllerBase {
     });
   }
 
+  @common.UseInterceptors(AclFilterResponseInterceptor)
   @common.Get("/:id")
   @swagger.ApiOkResponse({ type: AuthorInformation })
   @swagger.ApiNotFoundResponse({ type: errors.NotFoundException })
+  @nestAccessControl.UseRoles({
+    resource: "AuthorInformation",
+    action: "read",
+    possession: "own",
+  })
+  @swagger.ApiForbiddenResponse({
+    type: errors.ForbiddenException,
+  })
   async authorInformation(
     @common.Param() params: AuthorInformationWhereUniqueInput
   ): Promise<AuthorInformation | null> {
@@ -88,9 +125,18 @@ export class AuthorInformationControllerBase {
     return result;
   }
 
+  @common.UseInterceptors(AclValidateRequestInterceptor)
   @common.Patch("/:id")
   @swagger.ApiOkResponse({ type: AuthorInformation })
   @swagger.ApiNotFoundResponse({ type: errors.NotFoundException })
+  @nestAccessControl.UseRoles({
+    resource: "AuthorInformation",
+    action: "update",
+    possession: "any",
+  })
+  @swagger.ApiForbiddenResponse({
+    type: errors.ForbiddenException,
+  })
   async updateAuthorInformation(
     @common.Param() params: AuthorInformationWhereUniqueInput,
     @common.Body() data: AuthorInformationUpdateInput
@@ -121,6 +167,14 @@ export class AuthorInformationControllerBase {
   @common.Delete("/:id")
   @swagger.ApiOkResponse({ type: AuthorInformation })
   @swagger.ApiNotFoundResponse({ type: errors.NotFoundException })
+  @nestAccessControl.UseRoles({
+    resource: "AuthorInformation",
+    action: "delete",
+    possession: "any",
+  })
+  @swagger.ApiForbiddenResponse({
+    type: errors.ForbiddenException,
+  })
   async deleteAuthorInformation(
     @common.Param() params: AuthorInformationWhereUniqueInput
   ): Promise<AuthorInformation | null> {
@@ -144,5 +198,103 @@ export class AuthorInformationControllerBase {
       }
       throw error;
     }
+  }
+
+  @common.Put(":id/image")
+  @common.UseInterceptors(FileInterceptor("file"))
+  @swagger.ApiConsumes("multipart/form-data")
+  @swagger.ApiBody({
+    schema: {
+      type: "object",
+
+      properties: {
+        file: {
+          type: "string",
+          format: "binary",
+        },
+      },
+    },
+  })
+  @swagger.ApiParam({
+    name: "id",
+    type: "string",
+    required: true,
+  })
+  @swagger.ApiCreatedResponse({
+    type: AuthorInformation,
+    status: "2XX",
+  })
+  @swagger.ApiNotFoundResponse({
+    type: errors.NotFoundException,
+  })
+  async uploadImage(
+    @common.Param()
+    params: AuthorInformationWhereUniqueInput,
+    @common.UploadedFile()
+    file: Express.Multer.File
+  ): Promise<AuthorInformation> {
+    return this.service.uploadImage(
+      {
+        where: params,
+      },
+      Object.assign(file, {
+        filename: file.originalname,
+      })
+    );
+  }
+
+  @common.Get(":id/image")
+  @swagger.ApiParam({
+    name: "id",
+    type: "string",
+    required: true,
+  })
+  @swagger.ApiOkResponse({
+    type: common.StreamableFile,
+  })
+  @swagger.ApiNotFoundResponse({
+    type: errors.NotFoundException,
+  })
+  async downloadImage(
+    @common.Param()
+    params: AuthorInformationWhereUniqueInput,
+    @common.Res({
+      passthrough: true,
+    })
+    res: Response
+  ): Promise<common.StreamableFile> {
+    const result = await this.service.downloadImage({
+      where: params,
+    });
+
+    if (result === null) {
+      throw new errors.NotFoundException(
+        "No resource was found for ",
+        JSON.stringify(params)
+      );
+    }
+
+    res.setHeader(
+      "Content-Disposition",
+      `attachment; filename=${result.filename}`
+    );
+    res.setHeader("Content-Type", result.mimetype);
+    return result.stream;
+  }
+
+  @common.Delete(":id/image")
+  @swagger.ApiOkResponse({
+    type: AuthorInformation,
+  })
+  @swagger.ApiNotFoundResponse({
+    type: errors.NotFoundException,
+  })
+  async deleteImage(
+    @common.Param()
+    params: AuthorInformationWhereUniqueInput
+  ): Promise<AuthorInformation> {
+    return this.service.deleteImage({
+      where: params,
+    });
   }
 }

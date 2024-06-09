@@ -13,6 +13,14 @@ import * as graphql from "@nestjs/graphql";
 import { GraphQLError } from "graphql";
 import { isRecordNotFoundError } from "../../prisma.util";
 import { MetaQueryPayload } from "../../util/MetaQueryPayload";
+import * as nestAccessControl from "nest-access-control";
+import * as gqlACGuard from "../../auth/gqlAC.guard";
+import { GqlDefaultAuthGuard } from "../../auth/gqlDefaultAuth.guard";
+import * as common from "@nestjs/common";
+import { GraphQLUpload } from "graphql-upload";
+import { FileUpload } from "src/storage/base/storage.types";
+import { AclFilterResponseInterceptor } from "../../interceptors/aclFilterResponse.interceptor";
+import { AclValidateRequestInterceptor } from "../../interceptors/aclValidateRequest.interceptor";
 import { PublisherInformation } from "./PublisherInformation";
 import { PublisherInformationCountArgs } from "./PublisherInformationCountArgs";
 import { PublisherInformationFindManyArgs } from "./PublisherInformationFindManyArgs";
@@ -21,10 +29,20 @@ import { CreatePublisherInformationArgs } from "./CreatePublisherInformationArgs
 import { UpdatePublisherInformationArgs } from "./UpdatePublisherInformationArgs";
 import { DeletePublisherInformationArgs } from "./DeletePublisherInformationArgs";
 import { PublisherInformationService } from "../publisherInformation.service";
+@common.UseGuards(GqlDefaultAuthGuard, gqlACGuard.GqlACGuard)
 @graphql.Resolver(() => PublisherInformation)
 export class PublisherInformationResolverBase {
-  constructor(protected readonly service: PublisherInformationService) {}
+  constructor(
+    protected readonly service: PublisherInformationService,
+    protected readonly rolesBuilder: nestAccessControl.RolesBuilder
+  ) {}
 
+  @graphql.Query(() => MetaQueryPayload)
+  @nestAccessControl.UseRoles({
+    resource: "PublisherInformation",
+    action: "read",
+    possession: "any",
+  })
   async _publisherInformationsMeta(
     @graphql.Args() args: PublisherInformationCountArgs
   ): Promise<MetaQueryPayload> {
@@ -34,14 +52,26 @@ export class PublisherInformationResolverBase {
     };
   }
 
+  @common.UseInterceptors(AclFilterResponseInterceptor)
   @graphql.Query(() => [PublisherInformation])
+  @nestAccessControl.UseRoles({
+    resource: "PublisherInformation",
+    action: "read",
+    possession: "any",
+  })
   async publisherInformations(
     @graphql.Args() args: PublisherInformationFindManyArgs
   ): Promise<PublisherInformation[]> {
     return this.service.publisherInformations(args);
   }
 
+  @common.UseInterceptors(AclFilterResponseInterceptor)
   @graphql.Query(() => PublisherInformation, { nullable: true })
+  @nestAccessControl.UseRoles({
+    resource: "PublisherInformation",
+    action: "read",
+    possession: "own",
+  })
   async publisherInformation(
     @graphql.Args() args: PublisherInformationFindUniqueArgs
   ): Promise<PublisherInformation | null> {
@@ -52,7 +82,13 @@ export class PublisherInformationResolverBase {
     return result;
   }
 
+  @common.UseInterceptors(AclValidateRequestInterceptor)
   @graphql.Mutation(() => PublisherInformation)
+  @nestAccessControl.UseRoles({
+    resource: "PublisherInformation",
+    action: "create",
+    possession: "any",
+  })
   async createPublisherInformation(
     @graphql.Args() args: CreatePublisherInformationArgs
   ): Promise<PublisherInformation> {
@@ -62,7 +98,13 @@ export class PublisherInformationResolverBase {
     });
   }
 
+  @common.UseInterceptors(AclValidateRequestInterceptor)
   @graphql.Mutation(() => PublisherInformation)
+  @nestAccessControl.UseRoles({
+    resource: "PublisherInformation",
+    action: "update",
+    possession: "any",
+  })
   async updatePublisherInformation(
     @graphql.Args() args: UpdatePublisherInformationArgs
   ): Promise<PublisherInformation | null> {
@@ -82,6 +124,11 @@ export class PublisherInformationResolverBase {
   }
 
   @graphql.Mutation(() => PublisherInformation)
+  @nestAccessControl.UseRoles({
+    resource: "PublisherInformation",
+    action: "delete",
+    possession: "any",
+  })
   async deletePublisherInformation(
     @graphql.Args() args: DeletePublisherInformationArgs
   ): Promise<PublisherInformation | null> {
@@ -95,5 +142,26 @@ export class PublisherInformationResolverBase {
       }
       throw error;
     }
+  }
+
+  @graphql.Mutation(() => PublisherInformation)
+  async uploadLogo(
+    @graphql.Args({
+      name: "file",
+      type: () => GraphQLUpload,
+    })
+    file: FileUpload,
+    @graphql.Args()
+    args: PublisherInformationFindUniqueArgs
+  ): Promise<PublisherInformation> {
+    return await this.service.uploadLogo(args, file);
+  }
+
+  @graphql.Mutation(() => PublisherInformation)
+  async deleteLogo(
+    @graphql.Args()
+    args: PublisherInformationFindUniqueArgs
+  ): Promise<PublisherInformation> {
+    return await this.service.deleteLogo(args);
   }
 }

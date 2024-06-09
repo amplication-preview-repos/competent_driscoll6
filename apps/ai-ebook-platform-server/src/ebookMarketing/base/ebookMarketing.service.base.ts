@@ -11,9 +11,16 @@ https://docs.amplication.com/how-to/custom-code
   */
 import { PrismaService } from "../../prisma/prisma.service";
 import { Prisma, EbookMarketing as PrismaEbookMarketing } from "@prisma/client";
+import { LocalStorageService } from "src/storage/providers/local/local.storage.service";
+import { InputJsonValue } from "src/types";
+import { FileDownload, FileUpload } from "src/storage/base/storage.types";
+import { LocalStorageFile } from "src/storage/providers/local/local.storage.types";
 
 export class EbookMarketingServiceBase {
-  constructor(protected readonly prisma: PrismaService) {}
+  constructor(
+    protected readonly prisma: PrismaService,
+    protected readonly localStorageService: LocalStorageService
+  ) {}
 
   async count(
     args: Omit<Prisma.EbookMarketingCountArgs, "select">
@@ -47,5 +54,61 @@ export class EbookMarketingServiceBase {
     args: Prisma.SelectSubset<T, Prisma.EbookMarketingDeleteArgs>
   ): Promise<PrismaEbookMarketing> {
     return this.prisma.ebookMarketing.delete(args);
+  }
+
+  async uploadCover<T extends Prisma.EbookMarketingFindUniqueArgs>(
+    args: Prisma.SelectSubset<T, Prisma.EbookMarketingFindUniqueArgs>,
+    file: FileUpload
+  ): Promise<PrismaEbookMarketing> {
+    file.filename = `profilePicture-${args.where.id}.${file.filename
+      .split(".")
+      .pop()}`;
+    const containerPath = "cover";
+    const cover = await this.localStorageService.uploadFile(
+      file,
+      [],
+      1000000,
+      containerPath
+    );
+
+    return await this.prisma.ebookMarketing.update({
+      where: args.where,
+
+      data: {
+        cover: cover as InputJsonValue,
+      },
+    });
+  }
+
+  async downloadCover<T extends Prisma.EbookMarketingFindUniqueArgs>(
+    args: Prisma.SelectSubset<T, Prisma.EbookMarketingFindUniqueArgs>
+  ): Promise<FileDownload> {
+    const { cover } = await this.prisma.ebookMarketing.findUniqueOrThrow({
+      where: args.where,
+    });
+
+    return await this.localStorageService.downloadFile(
+      cover as unknown as LocalStorageFile
+    );
+  }
+
+  async deleteCover<T extends Prisma.EbookMarketingFindUniqueArgs>(
+    args: Prisma.SelectSubset<T, Prisma.EbookMarketingFindUniqueArgs>
+  ): Promise<PrismaEbookMarketing> {
+    const { cover } = await this.prisma.ebookMarketing.findUniqueOrThrow({
+      where: args.where,
+    });
+
+    await this.localStorageService.deleteFile(
+      cover as unknown as LocalStorageFile
+    );
+
+    return await this.prisma.ebookMarketing.update({
+      where: args.where,
+
+      data: {
+        cover: Prisma.DbNull,
+      },
+    });
   }
 }

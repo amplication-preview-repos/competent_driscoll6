@@ -13,6 +13,14 @@ import * as graphql from "@nestjs/graphql";
 import { GraphQLError } from "graphql";
 import { isRecordNotFoundError } from "../../prisma.util";
 import { MetaQueryPayload } from "../../util/MetaQueryPayload";
+import * as nestAccessControl from "nest-access-control";
+import * as gqlACGuard from "../../auth/gqlAC.guard";
+import { GqlDefaultAuthGuard } from "../../auth/gqlDefaultAuth.guard";
+import * as common from "@nestjs/common";
+import { GraphQLUpload } from "graphql-upload";
+import { FileUpload } from "src/storage/base/storage.types";
+import { AclFilterResponseInterceptor } from "../../interceptors/aclFilterResponse.interceptor";
+import { AclValidateRequestInterceptor } from "../../interceptors/aclValidateRequest.interceptor";
 import { AuthorInformation } from "./AuthorInformation";
 import { AuthorInformationCountArgs } from "./AuthorInformationCountArgs";
 import { AuthorInformationFindManyArgs } from "./AuthorInformationFindManyArgs";
@@ -21,10 +29,20 @@ import { CreateAuthorInformationArgs } from "./CreateAuthorInformationArgs";
 import { UpdateAuthorInformationArgs } from "./UpdateAuthorInformationArgs";
 import { DeleteAuthorInformationArgs } from "./DeleteAuthorInformationArgs";
 import { AuthorInformationService } from "../authorInformation.service";
+@common.UseGuards(GqlDefaultAuthGuard, gqlACGuard.GqlACGuard)
 @graphql.Resolver(() => AuthorInformation)
 export class AuthorInformationResolverBase {
-  constructor(protected readonly service: AuthorInformationService) {}
+  constructor(
+    protected readonly service: AuthorInformationService,
+    protected readonly rolesBuilder: nestAccessControl.RolesBuilder
+  ) {}
 
+  @graphql.Query(() => MetaQueryPayload)
+  @nestAccessControl.UseRoles({
+    resource: "AuthorInformation",
+    action: "read",
+    possession: "any",
+  })
   async _authorInformationsMeta(
     @graphql.Args() args: AuthorInformationCountArgs
   ): Promise<MetaQueryPayload> {
@@ -34,14 +52,26 @@ export class AuthorInformationResolverBase {
     };
   }
 
+  @common.UseInterceptors(AclFilterResponseInterceptor)
   @graphql.Query(() => [AuthorInformation])
+  @nestAccessControl.UseRoles({
+    resource: "AuthorInformation",
+    action: "read",
+    possession: "any",
+  })
   async authorInformations(
     @graphql.Args() args: AuthorInformationFindManyArgs
   ): Promise<AuthorInformation[]> {
     return this.service.authorInformations(args);
   }
 
+  @common.UseInterceptors(AclFilterResponseInterceptor)
   @graphql.Query(() => AuthorInformation, { nullable: true })
+  @nestAccessControl.UseRoles({
+    resource: "AuthorInformation",
+    action: "read",
+    possession: "own",
+  })
   async authorInformation(
     @graphql.Args() args: AuthorInformationFindUniqueArgs
   ): Promise<AuthorInformation | null> {
@@ -52,7 +82,13 @@ export class AuthorInformationResolverBase {
     return result;
   }
 
+  @common.UseInterceptors(AclValidateRequestInterceptor)
   @graphql.Mutation(() => AuthorInformation)
+  @nestAccessControl.UseRoles({
+    resource: "AuthorInformation",
+    action: "create",
+    possession: "any",
+  })
   async createAuthorInformation(
     @graphql.Args() args: CreateAuthorInformationArgs
   ): Promise<AuthorInformation> {
@@ -62,7 +98,13 @@ export class AuthorInformationResolverBase {
     });
   }
 
+  @common.UseInterceptors(AclValidateRequestInterceptor)
   @graphql.Mutation(() => AuthorInformation)
+  @nestAccessControl.UseRoles({
+    resource: "AuthorInformation",
+    action: "update",
+    possession: "any",
+  })
   async updateAuthorInformation(
     @graphql.Args() args: UpdateAuthorInformationArgs
   ): Promise<AuthorInformation | null> {
@@ -82,6 +124,11 @@ export class AuthorInformationResolverBase {
   }
 
   @graphql.Mutation(() => AuthorInformation)
+  @nestAccessControl.UseRoles({
+    resource: "AuthorInformation",
+    action: "delete",
+    possession: "any",
+  })
   async deleteAuthorInformation(
     @graphql.Args() args: DeleteAuthorInformationArgs
   ): Promise<AuthorInformation | null> {
@@ -95,5 +142,26 @@ export class AuthorInformationResolverBase {
       }
       throw error;
     }
+  }
+
+  @graphql.Mutation(() => AuthorInformation)
+  async uploadImage(
+    @graphql.Args({
+      name: "file",
+      type: () => GraphQLUpload,
+    })
+    file: FileUpload,
+    @graphql.Args()
+    args: AuthorInformationFindUniqueArgs
+  ): Promise<AuthorInformation> {
+    return await this.service.uploadImage(args, file);
+  }
+
+  @graphql.Mutation(() => AuthorInformation)
+  async deleteImage(
+    @graphql.Args()
+    args: AuthorInformationFindUniqueArgs
+  ): Promise<AuthorInformation> {
+    return await this.service.deleteImage(args);
   }
 }

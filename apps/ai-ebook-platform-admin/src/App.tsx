@@ -17,6 +17,10 @@ import { PublisherInformationList } from "./publisherInformation/PublisherInform
 import { PublisherInformationCreate } from "./publisherInformation/PublisherInformationCreate";
 import { PublisherInformationEdit } from "./publisherInformation/PublisherInformationEdit";
 import { PublisherInformationShow } from "./publisherInformation/PublisherInformationShow";
+import { UserList } from "./user/UserList";
+import { UserCreate } from "./user/UserCreate";
+import { UserEdit } from "./user/UserEdit";
+import { UserShow } from "./user/UserShow";
 import { jwtAuthProvider } from "./auth-provider/ra-auth-jwt";
 
 const App = (): React.ReactElement => {
@@ -63,6 +67,13 @@ const App = (): React.ReactElement => {
           edit={PublisherInformationEdit}
           create={PublisherInformationCreate}
           show={PublisherInformationShow}
+        />
+        <Resource
+          name="User"
+          list={UserList}
+          edit={UserEdit}
+          create={UserCreate}
+          show={UserShow}
         />
       </Admin>
     </div>

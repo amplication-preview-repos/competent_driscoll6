@@ -13,20 +13,39 @@ import * as common from "@nestjs/common";
 import * as swagger from "@nestjs/swagger";
 import { isRecordNotFoundError } from "../../prisma.util";
 import * as errors from "../../errors";
-import { Request } from "express";
+import { Request, Response } from "express";
 import { plainToClass } from "class-transformer";
 import { ApiNestedQuery } from "../../decorators/api-nested-query.decorator";
+import * as nestAccessControl from "nest-access-control";
+import * as defaultAuthGuard from "../../auth/defaultAuth.guard";
+import { FileInterceptor } from "@nestjs/platform-express";
 import { EbookMarketingService } from "../ebookMarketing.service";
+import { AclValidateRequestInterceptor } from "../../interceptors/aclValidateRequest.interceptor";
+import { AclFilterResponseInterceptor } from "../../interceptors/aclFilterResponse.interceptor";
 import { EbookMarketingCreateInput } from "./EbookMarketingCreateInput";
 import { EbookMarketing } from "./EbookMarketing";
 import { EbookMarketingFindManyArgs } from "./EbookMarketingFindManyArgs";
 import { EbookMarketingWhereUniqueInput } from "./EbookMarketingWhereUniqueInput";
 import { EbookMarketingUpdateInput } from "./EbookMarketingUpdateInput";
 
+@swagger.ApiBearerAuth()
+@common.UseGuards(defaultAuthGuard.DefaultAuthGuard, nestAccessControl.ACGuard)
 export class EbookMarketingControllerBase {
-  constructor(protected readonly service: EbookMarketingService) {}
+  constructor(
+    protected readonly service: EbookMarketingService,
+    protected readonly rolesBuilder: nestAccessControl.RolesBuilder
+  ) {}
+  @common.UseInterceptors(AclValidateRequestInterceptor)
   @common.Post()
   @swagger.ApiCreatedResponse({ type: EbookMarketing })
+  @nestAccessControl.UseRoles({
+    resource: "EbookMarketing",
+    action: "create",
+    possession: "any",
+  })
+  @swagger.ApiForbiddenResponse({
+    type: errors.ForbiddenException,
+  })
   async createEbookMarketing(
     @common.Body() data: EbookMarketingCreateInput
   ): Promise<EbookMarketing> {
@@ -47,9 +66,18 @@ export class EbookMarketingControllerBase {
     });
   }
 
+  @common.UseInterceptors(AclFilterResponseInterceptor)
   @common.Get()
   @swagger.ApiOkResponse({ type: [EbookMarketing] })
   @ApiNestedQuery(EbookMarketingFindManyArgs)
+  @nestAccessControl.UseRoles({
+    resource: "EbookMarketing",
+    action: "read",
+    possession: "any",
+  })
+  @swagger.ApiForbiddenResponse({
+    type: errors.ForbiddenException,
+  })
   async ebookMarketings(
     @common.Req() request: Request
   ): Promise<EbookMarketing[]> {
@@ -71,9 +99,18 @@ export class EbookMarketingControllerBase {
     });
   }
 
+  @common.UseInterceptors(AclFilterResponseInterceptor)
   @common.Get("/:id")
   @swagger.ApiOkResponse({ type: EbookMarketing })
   @swagger.ApiNotFoundResponse({ type: errors.NotFoundException })
+  @nestAccessControl.UseRoles({
+    resource: "EbookMarketing",
+    action: "read",
+    possession: "own",
+  })
+  @swagger.ApiForbiddenResponse({
+    type: errors.ForbiddenException,
+  })
   async ebookMarketing(
     @common.Param() params: EbookMarketingWhereUniqueInput
   ): Promise<EbookMarketing | null> {
@@ -100,9 +137,18 @@ export class EbookMarketingControllerBase {
     return result;
   }
 
+  @common.UseInterceptors(AclValidateRequestInterceptor)
   @common.Patch("/:id")
   @swagger.ApiOkResponse({ type: EbookMarketing })
   @swagger.ApiNotFoundResponse({ type: errors.NotFoundException })
+  @nestAccessControl.UseRoles({
+    resource: "EbookMarketing",
+    action: "update",
+    possession: "any",
+  })
+  @swagger.ApiForbiddenResponse({
+    type: errors.ForbiddenException,
+  })
   async updateEbookMarketing(
     @common.Param() params: EbookMarketingWhereUniqueInput,
     @common.Body() data: EbookMarketingUpdateInput
@@ -137,6 +183,14 @@ export class EbookMarketingControllerBase {
   @common.Delete("/:id")
   @swagger.ApiOkResponse({ type: EbookMarketing })
   @swagger.ApiNotFoundResponse({ type: errors.NotFoundException })
+  @nestAccessControl.UseRoles({
+    resource: "EbookMarketing",
+    action: "delete",
+    possession: "any",
+  })
+  @swagger.ApiForbiddenResponse({
+    type: errors.ForbiddenException,
+  })
   async deleteEbookMarketing(
     @common.Param() params: EbookMarketingWhereUniqueInput
   ): Promise<EbookMarketing | null> {
@@ -164,5 +218,103 @@ export class EbookMarketingControllerBase {
       }
       throw error;
     }
+  }
+
+  @common.Put(":id/cover")
+  @common.UseInterceptors(FileInterceptor("file"))
+  @swagger.ApiConsumes("multipart/form-data")
+  @swagger.ApiBody({
+    schema: {
+      type: "object",
+
+      properties: {
+        file: {
+          type: "string",
+          format: "binary",
+        },
+      },
+    },
+  })
+  @swagger.ApiParam({
+    name: "id",
+    type: "string",
+    required: true,
+  })
+  @swagger.ApiCreatedResponse({
+    type: EbookMarketing,
+    status: "2XX",
+  })
+  @swagger.ApiNotFoundResponse({
+    type: errors.NotFoundException,
+  })
+  async uploadCover(
+    @common.Param()
+    params: EbookMarketingWhereUniqueInput,
+    @common.UploadedFile()
+    file: Express.Multer.File
+  ): Promise<EbookMarketing> {
+    return this.service.uploadCover(
+      {
+        where: params,
+      },
+      Object.assign(file, {
+        filename: file.originalname,
+      })
+    );
+  }
+
+  @common.Get(":id/cover")
+  @swagger.ApiParam({
+    name: "id",
+    type: "string",
+    required: true,
+  })
+  @swagger.ApiOkResponse({
+    type: common.StreamableFile,
+  })
+  @swagger.ApiNotFoundResponse({
+    type: errors.NotFoundException,
+  })
+  async downloadCover(
+    @common.Param()
+    params: EbookMarketingWhereUniqueInput,
+    @common.Res({
+      passthrough: true,
+    })
+    res: Response
+  ): Promise<common.StreamableFile> {
+    const result = await this.service.downloadCover({
+      where: params,
+    });
+
+    if (result === null) {
+      throw new errors.NotFoundException(
+        "No resource was found for ",
+        JSON.stringify(params)
+      );
+    }
+
+    res.setHeader(
+      "Content-Disposition",
+      `attachment; filename=${result.filename}`
+    );
+    res.setHeader("Content-Type", result.mimetype);
+    return result.stream;
+  }
+
+  @common.Delete(":id/cover")
+  @swagger.ApiOkResponse({
+    type: EbookMarketing,
+  })
+  @swagger.ApiNotFoundResponse({
+    type: errors.NotFoundException,
+  })
+  async deleteCover(
+    @common.Param()
+    params: EbookMarketingWhereUniqueInput
+  ): Promise<EbookMarketing> {
+    return this.service.deleteCover({
+      where: params,
+    });
   }
 }

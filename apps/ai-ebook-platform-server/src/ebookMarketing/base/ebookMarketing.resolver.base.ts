@@ -13,6 +13,14 @@ import * as graphql from "@nestjs/graphql";
 import { GraphQLError } from "graphql";
 import { isRecordNotFoundError } from "../../prisma.util";
 import { MetaQueryPayload } from "../../util/MetaQueryPayload";
+import * as nestAccessControl from "nest-access-control";
+import * as gqlACGuard from "../../auth/gqlAC.guard";
+import { GqlDefaultAuthGuard } from "../../auth/gqlDefaultAuth.guard";
+import * as common from "@nestjs/common";
+import { GraphQLUpload } from "graphql-upload";
+import { FileUpload } from "src/storage/base/storage.types";
+import { AclFilterResponseInterceptor } from "../../interceptors/aclFilterResponse.interceptor";
+import { AclValidateRequestInterceptor } from "../../interceptors/aclValidateRequest.interceptor";
 import { EbookMarketing } from "./EbookMarketing";
 import { EbookMarketingCountArgs } from "./EbookMarketingCountArgs";
 import { EbookMarketingFindManyArgs } from "./EbookMarketingFindManyArgs";
@@ -21,10 +29,20 @@ import { CreateEbookMarketingArgs } from "./CreateEbookMarketingArgs";
 import { UpdateEbookMarketingArgs } from "./UpdateEbookMarketingArgs";
 import { DeleteEbookMarketingArgs } from "./DeleteEbookMarketingArgs";
 import { EbookMarketingService } from "../ebookMarketing.service";
+@common.UseGuards(GqlDefaultAuthGuard, gqlACGuard.GqlACGuard)
 @graphql.Resolver(() => EbookMarketing)
 export class EbookMarketingResolverBase {
-  constructor(protected readonly service: EbookMarketingService) {}
+  constructor(
+    protected readonly service: EbookMarketingService,
+    protected readonly rolesBuilder: nestAccessControl.RolesBuilder
+  ) {}
 
+  @graphql.Query(() => MetaQueryPayload)
+  @nestAccessControl.UseRoles({
+    resource: "EbookMarketing",
+    action: "read",
+    possession: "any",
+  })
   async _ebookMarketingsMeta(
     @graphql.Args() args: EbookMarketingCountArgs
   ): Promise<MetaQueryPayload> {
@@ -34,14 +52,26 @@ export class EbookMarketingResolverBase {
     };
   }
 
+  @common.UseInterceptors(AclFilterResponseInterceptor)
   @graphql.Query(() => [EbookMarketing])
+  @nestAccessControl.UseRoles({
+    resource: "EbookMarketing",
+    action: "read",
+    possession: "any",
+  })
   async ebookMarketings(
     @graphql.Args() args: EbookMarketingFindManyArgs
   ): Promise<EbookMarketing[]> {
     return this.service.ebookMarketings(args);
   }
 
+  @common.UseInterceptors(AclFilterResponseInterceptor)
   @graphql.Query(() => EbookMarketing, { nullable: true })
+  @nestAccessControl.UseRoles({
+    resource: "EbookMarketing",
+    action: "read",
+    possession: "own",
+  })
   async ebookMarketing(
     @graphql.Args() args: EbookMarketingFindUniqueArgs
   ): Promise<EbookMarketing | null> {
@@ -52,7 +82,13 @@ export class EbookMarketingResolverBase {
     return result;
   }
 
+  @common.UseInterceptors(AclValidateRequestInterceptor)
   @graphql.Mutation(() => EbookMarketing)
+  @nestAccessControl.UseRoles({
+    resource: "EbookMarketing",
+    action: "create",
+    possession: "any",
+  })
   async createEbookMarketing(
     @graphql.Args() args: CreateEbookMarketingArgs
   ): Promise<EbookMarketing> {
@@ -62,7 +98,13 @@ export class EbookMarketingResolverBase {
     });
   }
 
+  @common.UseInterceptors(AclValidateRequestInterceptor)
   @graphql.Mutation(() => EbookMarketing)
+  @nestAccessControl.UseRoles({
+    resource: "EbookMarketing",
+    action: "update",
+    possession: "any",
+  })
   async updateEbookMarketing(
     @graphql.Args() args: UpdateEbookMarketingArgs
   ): Promise<EbookMarketing | null> {
@@ -82,6 +124,11 @@ export class EbookMarketingResolverBase {
   }
 
   @graphql.Mutation(() => EbookMarketing)
+  @nestAccessControl.UseRoles({
+    resource: "EbookMarketing",
+    action: "delete",
+    possession: "any",
+  })
   async deleteEbookMarketing(
     @graphql.Args() args: DeleteEbookMarketingArgs
   ): Promise<EbookMarketing | null> {
@@ -95,5 +142,26 @@ export class EbookMarketingResolverBase {
       }
       throw error;
     }
+  }
+
+  @graphql.Mutation(() => EbookMarketing)
+  async uploadCover(
+    @graphql.Args({
+      name: "file",
+      type: () => GraphQLUpload,
+    })
+    file: FileUpload,
+    @graphql.Args()
+    args: EbookMarketingFindUniqueArgs
+  ): Promise<EbookMarketing> {
+    return await this.service.uploadCover(args, file);
+  }
+
+  @graphql.Mutation(() => EbookMarketing)
+  async deleteCover(
+    @graphql.Args()
+    args: EbookMarketingFindUniqueArgs
+  ): Promise<EbookMarketing> {
+    return await this.service.deleteCover(args);
   }
 }
